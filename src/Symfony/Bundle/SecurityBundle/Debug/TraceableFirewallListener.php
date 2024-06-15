@@ -31,7 +31,10 @@ final class TraceableFirewallListener extends FirewallListener implements ResetI
 
     public function getWrappedListeners(): array
     {
-        return $this->wrappedListeners;
+        return array_map(
+            static fn (WrappedListener|WrappedLazyListener $listener) => $listener->getInfo(),
+            $this->wrappedListeners
+        );
     }
 
     public function getAuthenticatorsInfo(): array
@@ -48,12 +51,11 @@ final class TraceableFirewallListener extends FirewallListener implements ResetI
     protected function callListeners(RequestEvent $event, iterable $listeners): void
     {
         $wrappedListeners = [];
-        $wrappedLazyListeners = [];
         $authenticatorManagerListener = null;
 
         foreach ($listeners as $listener) {
             if ($listener instanceof LazyFirewallContext) {
-                \Closure::bind(function () use (&$wrappedLazyListeners, &$wrappedListeners, &$authenticatorManagerListener) {
+                \Closure::bind(function () use (&$wrappedListeners, &$authenticatorManagerListener) {
                     $listeners = [];
                     foreach ($this->listeners as $listener) {
                         if (!$authenticatorManagerListener && $listener instanceof TraceableAuthenticatorManagerListener) {
@@ -62,12 +64,12 @@ final class TraceableFirewallListener extends FirewallListener implements ResetI
                         if ($listener instanceof FirewallListenerInterface) {
                             $listener = new WrappedLazyListener($listener);
                             $listeners[] = $listener;
-                            $wrappedLazyListeners[] = $listener;
+                            $wrappedListeners[] = $listener;
                         } else {
                             $listeners[] = function (RequestEvent $event) use ($listener, &$wrappedListeners) {
                                 $wrappedListener = new WrappedListener($listener);
                                 $wrappedListener($event);
-                                $wrappedListeners[] = $wrappedListener->getInfo();
+                                $wrappedListeners[] = $wrappedListener;
                             };
                         }
                     }
@@ -78,7 +80,7 @@ final class TraceableFirewallListener extends FirewallListener implements ResetI
             } else {
                 $wrappedListener = $listener instanceof FirewallListenerInterface ? new WrappedLazyListener($listener) : new WrappedListener($listener);
                 $wrappedListener($event);
-                $wrappedListeners[] = $wrappedListener->getInfo();
+                $this->wrappedListeners[] = $wrappedListener;
                 if (!$authenticatorManagerListener && $listener instanceof TraceableAuthenticatorManagerListener) {
                     $authenticatorManagerListener = $listener;
                 }
@@ -86,12 +88,6 @@ final class TraceableFirewallListener extends FirewallListener implements ResetI
 
             if ($event->hasResponse()) {
                 break;
-            }
-        }
-
-        if ($wrappedLazyListeners) {
-            foreach ($wrappedLazyListeners as $lazyListener) {
-                $this->wrappedListeners[] = $lazyListener->getInfo();
             }
         }
 
