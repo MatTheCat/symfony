@@ -29,9 +29,27 @@
             padding: 0 0 8px 0;
         }
 
+        #collector-content .authenticators .sf-toggle + .sf-toggle {
+            margin-left: 10px;
+        }
+
+        #collector-content .authenticators .toggleable {
+            background: var(--code-block-background);
+            border-radius: 4px;
+            padding: 5px;
+        }
+        #collector-content .authenticators .toggleable + .toggleable {
+            margin-top: 10px;
+        }
+
+        #collector-content .authenticators .badges {
+            margin: 10px 0 0;
+        }
+
         #collector-content .authenticators .badge {
             color: var(--white);
             display: inline-block;
+            margin-bottom: 0;
             text-align: center;
         }
         #collector-content .authenticators .badge.badge-resolved {
@@ -39,13 +57,6 @@
         }
         #collector-content .authenticators .badge.badge-not_resolved {
             background-color: var(--yellow-500);
-        }
-
-        #collector-content .authenticators svg[data-icon-name="icon-tabler-check"] {
-            color: var(--green-500);
-        }
-        #collector-content .authenticators svg[data-icon-name="icon-tabler-x"] {
-            color: var(--red-500);
         }
     </style>
 {% endblock %}
@@ -336,49 +347,73 @@
                 <div class="tab-content">
                     {% if collector.authenticators|default([]) is not empty %}
                         <table class="authenticators">
+                            <colgroup>
+                                <col>
+                                <col style="width: 100%">
+                            </colgroup>
                             <thead>
                             <tr>
+                                <th>Status</th>
                                 <th>Authenticator</th>
-                                <th>Supports</th>
-                                <th>Authenticated</th>
-                                <th>Duration</th>
-                                <th>Passport</th>
-                                <th>Badges</th>
                             </tr>
                             </thead>
-
-                            {% set previous_event = (collector.listeners|first) %}
-                            {% for authenticator in collector.authenticators %}
-                                {% if loop.first or authenticator != previous_event %}
-                                    {% if not loop.first %}
-                                        </tbody>
-                                    {% endif %}
-
-                                    <tbody>
-                                    {% set previous_event = authenticator %}
-                                {% endif %}
-
+                            <tbody>
+                            {% for i, authenticator in collector.authenticators %}
                                 <tr>
-                                    <td class="font-normal">{{ profiler_dump(authenticator.stub) }}</td>
-                                    <td class="no-wrap">{{ source('@WebProfiler/Icon/' ~ (authenticator.supports is same as (false) ? 'no' : 'yes') ~ '.svg') }}</td>
-                                    <td class="no-wrap">{{ authenticator.authenticated is not null ? source('@WebProfiler/Icon/' ~ (authenticator.authenticated ? 'yes' : 'no') ~ '.svg') : '' }}</td>
-                                    <td class="no-wrap">{{ authenticator.duration is null ? '(none)' : '%0.2f ms'|format(authenticator.duration * 1000) }}</td>
-                                    <td class="font-normal">{{ authenticator.passport ? profiler_dump(authenticator.passport) : '(none)' }}</td>
-                                    <td class="font-normal">
-                                        {% for badge in authenticator.badges ?? [] %}
-                                            <span class="badge badge-{{ badge.resolved ? 'resolved' : 'not_resolved' }}">
-                                            {{ badge.stub|abbr_class }}
-                                            </span>
+                                    <td class="font-normal text-small">
+                                        {% if authenticator.authenticated %}
+                                            {% set status_text, label_status = 'successful', 'success' %}
+                                        {% elseif authenticator.supports is not same as(false) %}
+                                            {% set status_text, label_status = 'unsuccessful', 'error' %}
                                         {% else %}
-                                            (none)
-                                        {% endfor %}
+                                            {% set status_text, label_status = 'skipped', false %}
+                                        {% endif %}
+                                        <div class="label {{ label_status ? 'status-' ~ label_status }}">{{ status_text }}</div>
+                                        {{ authenticator.duration is not null ? '%0.2f ms'|format(authenticator.duration * 1000) }}
+                                        {{ authenticator.supports is null ? '(lazy)' }}
+                                    </td>
+                                    <td>
+                                        {{ profiler_dump(authenticator.stub) }}
+
+                                        <div class="font-normal">
+                                            {% if authenticator.passport %}
+                                                <button
+                                                    class="btn btn-link text-small sf-toggle"
+                                                    data-toggle-selector="#authenticator-{{ i }}-passport"
+                                                    data-toggle-alt-content="Hide passport"
+                                                >View passport</button>
+                                            {% endif %}
+                                            {% if authenticator.exception ?? null %}
+                                                <button
+                                                    class="btn btn-link text-small sf-toggle"
+                                                    data-toggle-selector="#authenticator-{{ i }}-exception"
+                                                    data-toggle-alt-content="Hide exception"
+                                                >View exception</button>
+                                            {% endif %}
+                                        </div>
+                                        {% if authenticator.passport %}
+                                            <div class="toggleable" id="authenticator-{{ i }}-passport">
+                                                {{ profiler_dump(authenticator.passport) }}
+                                                {% if authenticator.badges %}
+                                                    <div class="badges">
+                                                    {% for badge in authenticator.badges %}
+                                                        <span class="badge badge-{{ badge.resolved ? 'resolved' : 'not_resolved' }}">
+                                                            {{ badge.stub|abbr_class }}
+                                                        </span>
+                                                    {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                        {% if authenticator.exception ?? null %}
+                                            <div class="toggleable" id="authenticator-{{ i }}-exception">
+                                                {{ profiler_dump(authenticator.exception) }}
+                                            </div>
+                                        {% endif %}
                                     </td>
                                 </tr>
-
-                                {% if loop.last %}
-                                    </tbody>
-                                {% endif %}
                             {% endfor %}
+                            </tbody>
                         </table>
                     {% else %}
                         <div class="empty">
