@@ -1,23 +1,25 @@
 define diagram-orchestration
-import { diagram as flowchartV2 } from '../diagrams/flowchart/flowDiagram-v2.js';
+import flowchartV2 from '../diagrams/flowchart/flowDetector-v2.js';
 import { registerDiagram } from './diagramAPI.js';
 
 let hasLoadedDiagrams = false;
-export const addDiagrams = () => {
+export const addDiagrams = async () => {
   if (hasLoadedDiagrams) {
     return;
   }
   hasLoadedDiagrams = true;
-  registerDiagram('flowchart-v2', flowchartV2, () => true);
+  const {id, diagram} = await flowchartV2.loader();
+  registerDiagram(id, diagram, () => true);
 };
 endef
 
-override tag := v10.9.0
+override tag := 11.4.1
 
 .PHONY: mermaid-flowchart-v2.min.js
 mermaid-flowchart-v2.min.js: | repo-$(tag)/node_modules
 	$(file >repo-$(tag)/packages/mermaid/src/diagram-api/diagram-orchestration.ts,$(diagram-orchestration))
-	pnpm -C repo-$(tag) run build
+	sed -i 's/globalThis.__esbuild_esm_mermaid.default/__esbuild_esm_mermaid.default/' repo-$(tag)/.esbuild/util.ts
+	pnpm -C repo-$(tag) run build:mermaid
 	cp repo-$(tag)/packages/mermaid/dist/mermaid.min.js $@
 
 repo-$(tag)/node_modules: | repo-$(tag)
@@ -25,7 +27,7 @@ repo-$(tag)/node_modules: | repo-$(tag)
 
 .SECONDARY: repo-$(tag)
 repo-$(tag):
-	curl -fL https://github.com/mermaid-js/mermaid/archive/refs/tags/$(tag).tar.gz | tar -xz --strip-components=1 --one-top-level=$@
+	curl -fL https://github.com/mermaid-js/mermaid/archive/refs/tags/mermaid@$(tag).tar.gz | tar -xz --strip-components=1 --one-top-level=$@
 
 .PHONY: clean
 clean:
